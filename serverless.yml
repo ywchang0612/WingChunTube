@@ -1,0 +1,21 @@
+service: ywchang-first-bref
+
+provider:
+    name: aws
+    region: us-east-1
+    runtime: provided
+
+plugins:
+    - ./vendor/bref/bref
+
+functions:
+    hello:
+        handler: index.php
+        description: ''
+        layers:
+            - ${bref:layer.php-74}
+
+# Exclude files from deployment
+package:
+    exclude:
+        - 'tests/**'
