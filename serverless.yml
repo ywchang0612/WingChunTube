@@ -2,8 +2,11 @@ service: ywchang-first-bref
 
 provider:
     name: aws
-    region: us-east-1
+    region: us-west-2
     runtime: provided
+    environment:
+      # Laravel environment variables
+      APP_STORAGE: '/tmp'
 
 plugins:
     - ./vendor/bref/bref
@@ -14,6 +17,20 @@ functions:
         description: ''
         layers:
             - ${bref:layer.php-74}
+    website:
+        handler: public/index.php
+        timeout: 30 # in seconds (API Gateway has a timeout of 30 seconds)
+        layers:
+          - ${bref:layer.php-74-fpm}
+        events:
+          -   http: 'ANY /'
+          -   http: 'ANY /{proxy+}'
+    artisan:
+        handler: artisan
+        timeout: 120 # in seconds
+        layers:
+          - ${bref:layer.php-74} # PHP
+          - ${bref:layer.console} # The "console" layer
 
 # Exclude files from deployment
 package:
