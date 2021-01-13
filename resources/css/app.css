@@ -1,0 +1,6 @@
+/* ./resources/css/app.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import "~video.js/dist/video-js.min.css";

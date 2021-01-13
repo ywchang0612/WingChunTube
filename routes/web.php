@@ -18,6 +18,7 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-Route::resource('videos', VideoController::class);
-Route::get('videos/{path?}', [VideoController::class, 'show'])
+
+Route::get('videos', [VideoController::class, 'index'])->name('videos.index');
+Route::get('videos/{path?}', [VideoController::class, 'show'])->name('videos.show')
     ->where('path', '.*');

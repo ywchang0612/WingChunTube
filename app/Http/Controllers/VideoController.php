@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Storage;
 use Psy\Util\Json;
 
 class VideoController extends Controller
@@ -16,15 +17,21 @@ class VideoController extends Controller
     public function index()
     {
         $collect = collect($this->getContent())
-            ->where('type', '!=', 'file');
-//            ->whereIn('extension', ['VOB', 'WMV', 'mov', 'wmv', 'avi', 'rm', 'asf']);
-//dd($collect);
+            ->where('type', 'file');
+
+        if ($keywords = request('search')) {
+            $collect = $collect->filter(function ($item) use ($keywords) {
+                return preg_match("(" . $keywords . ")iu", $item['path']);
+            });
+        }
 
         $items = (new LengthAwarePaginator(
             $collect->forPage(request()->get('page'), 20),
             $collect->count(),
             20
-        ))->withPath('/videos');
+        ))
+            ->withPath(config('app.url'). '/videos')
+            ->appends('search', request('search'));
 
         return view('video.index', compact('items'));
     }
@@ -59,36 +66,15 @@ class VideoController extends Controller
      */
     public function show(Request $request, $path)
     {
-        if ($this->isDir($path)) {
-            $collect = collect($this->getContent())->filter(function ($item) use ($path) {
-                return \Str::startsWith(($item['path']), $path);
-            });
+        $path = base64_decode($path);
 
-            $items = (new LengthAwarePaginator(
-                $collect->forPage(request()->get('page'), 20),
-                $collect->count(),
-                20
-            ))->withPath('/videos/' . $path);
+        $driver = Storage::cloud();
 
-            return view('video.index', compact('items'));
-        } else {
-            $driver = \Storage::cloud();
+        $mimeType = $this->getMimeType($path);
 
-            $info = $driver->getMetadata($path);
+        $url = $driver->temporaryUrl($path, now()->addMinutes(10));
 
-            switch ($info['extension']) {
-                case 'webm':
-                    $mimeType = 'video/webm';
-                    break;
-                default:
-                    $mimeType = $driver->getMimeType($path);
-            }
-
-            $url = $driver->temporaryUrl($path, now()->addMinutes(10));
-
-            return view('video.show', compact('url', 'mimeType'));
-        }
-
+        return view('video.show', compact('url', 'mimeType'));
     }
 
     /**
@@ -147,5 +133,22 @@ class VideoController extends Controller
                 ->where('type', 'dir')
                 ->where('path', $path)
                 ->count() > 0;
+    }
+
+    protected function getMimeType(string $path)
+    {
+        $driver = Storage::cloud();
+
+        $info = $driver->getMetadata($path);
+
+        $extension = $info['extension'];
+
+        $mapper = [
+            'webm' => 'video/webm'
+        ];
+
+        return isset($mapper[$extension])
+            ? $mapper[$extension]
+            : $driver->getMimeType($path);
     }
 }
