@@ -1,38 +1,81 @@
-service: ywchang-first-bref
+service: wing-chun-tube
 
 provider:
-    name: aws
-    region: us-west-2
-    runtime: provided
-    environment:
-      # Laravel environment variables
-      APP_STORAGE: '/tmp'
+  name: aws
+  runtime: provided
+  # The AWS region in which to deploy (us-east-1 by default)
+  region: us-west-2
+  # The stage of the application, e.g. dev, prod, staging… ('dev' by default)
+  stage: dev
+  # 額外在 iam lambdaRole 中加入自訂的 aws policy
+  # iamManagedPolicies:
+  #  - 'arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess'
+  iamRoleStatements: # IAM role statements so that services can be accessed in the AWS account
+    - Effect: 'Allow'
+      Action:
+        - 's3:List*'
+        - 's3:Get*'
+      Resource:
+        - 'arn:aws:s3:::d60414'
+        - 'arn:aws:s3:::d60414/*'
+  environment:
+    # Laravel environment variables
+    APP_STORAGE: '/tmp'
+    APP_ENV: 'production'
+    APP_DEBUG: 'false'
+    APP_URL:
+      !Join
+      - ''
+      - - 'https://'
+        - !Ref ApiGatewayRestApi
+        - '.execute-api.'
+        - ${opt:region, self:provider.region}
+        - '.amazonaws.com/'
+        - ${opt:stage, self:provider.stage}
+
+    CACHE_DRIVER: 'file'
+    LOG_CHANNEL: 'stderr'
+    ASSET_URL: 'https://wing-chun-tube-assets.s3.amazonaws.com'
+    VIEW_COMPILED_PATH: '/tmp/storage/framework/views'
+
+resources:
+  Resources:
+    # The S3 bucket that stores the assets
+    Assets:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: wing-chun-tube-assets
+        CorsConfiguration:
+          CorsRules:
+            - AllowedHeaders: ["*"]
+              AllowedMethods: [GET]
+              AllowedOrigins: ["*"]
+    AssetsBucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        Bucket: !Ref Assets # References the bucket we defined above
+        PolicyDocument:
+          Statement:
+            - Effect: Allow
+              Principal: '*' # everyone
+              Action: 's3:GetObject' # to read
+              Resource: 'arn:aws:s3:::wing-chun-tube-assets/*'
 
 plugins:
-    - ./vendor/bref/bref
+  - ./vendor/bref/bref
 
 functions:
-    hello:
-        handler: index.php
-        description: ''
-        layers:
-            - ${bref:layer.php-74}
-    website:
-        handler: public/index.php
-        timeout: 30 # in seconds (API Gateway has a timeout of 30 seconds)
-        layers:
-          - ${bref:layer.php-74-fpm}
-        events:
-          -   http: 'ANY /'
-          -   http: 'ANY /{proxy+}'
-    artisan:
-        handler: artisan
-        timeout: 120 # in seconds
-        layers:
-          - ${bref:layer.php-74} # PHP
-          - ${bref:layer.console} # The "console" layer
+  website:
+    handler: public/index.php
+    timeout: 30 # in seconds (API Gateway has a timeout of 30 seconds)
+    layers:
+      - ${bref:layer.php-74-fpm}
+    events:
+      - http: 'ANY /'
+      - http: 'ANY /{proxy+}'
 
 # Exclude files from deployment
 package:
-    exclude:
-        - 'tests/**'
+  exclude:
+    - 'tests/**'
+    - 'node_modules/**'
